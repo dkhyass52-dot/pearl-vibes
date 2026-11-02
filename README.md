@@ -26,7 +26,7 @@ pearl-vibes/
     ├── data/
     │   ├── products.js     ← Catalogue : catégories (CATS), sous-catégories (SUBS), produits
     │   └── atelier.js      ← Perles et prix de l'Atelier sur mesure
-    ├── styles/main.css     Design (couleurs en haut du fichier, thèmes clair/sombre)
+    ├── styles/main.css     Design (toutes les couleurs et polices en haut du fichier)
     └── main.js             Logique : catalogue, panier, message WhatsApp, atelier
 ```
 
@@ -38,11 +38,15 @@ whatsapp: "22901XXXXXXXX",           // format international, sans + ni espaces
 whatsappDisplay: "+229 01 XX XX XX XX",
 ```
 
-**Pages catégories** — le site a trois pages : `/#colliers`, `/#bracelets`, `/#bayas`. Chacune a ses sous-catégories (définies dans `SUBS`), un filtre de prix, une recherche et un tri. Pour ajouter une sous-catégorie, ajoutez une ligne dans `SUBS` puis utilisez sa clé dans le champ `sub` des produits.
+**Pages catalogue** — `/#bayas`, `/#colliers`, `/#bracelets` et `/#boutique` (tous les bijoux, aussi utilisée par la recherche du bandeau). Chacune a ses sous-catégories (définies dans `SUBS`), un filtre de prix, une recherche et un tri. Pour ajouter une sous-catégorie, ajoutez une ligne dans `SUBS` puis utilisez sa clé dans le champ `sub` des produits.
 
 **Ajouter un produit** — dans `src/data/products.js`, copier une entrée et changer l'`id`, la catégorie (`cat`) et la sous-catégorie (`sub`). Mettre `feat: true` pour l'afficher dans les coups de cœur de l'accueil. Puis déposer la photo dans `public/img/` avec le même nom : `id: "collier-or"` → `public/img/collier-or.webp` (format portrait 4:5 conseillé, 900 × 1125 px).
 
-**Couleurs** — en haut de `src/styles/main.css`, bloc `:root` (thème sombre) et bloc `[data-theme="light"]` (thème clair).
+**Couleurs et polices** — en haut de `src/styles/main.css`, bloc `:root`. L'accent or est `--gold`, le fond crème `--cream`, le bandeau et le pied de page `--night`. Titres en Playball (script), texte en Arsenal.
+
+**Hero** — 3 photos qui défilent : `public/img/hero-1.webp`, `hero-2.webp`, `hero-3.webp`. Le `data-id` de chaque photo dans `index.html` indique la fiche produit qui s'ouvre au clic.
+
+**Tuiles « Nos collections »** — tableau `TILES` dans `src/main.js` : catégorie, sous-catégorie, libellé, photo.
 
 **Livraison** — `freeShipping` (seuil de livraison offerte) et `zones` dans `src/config.js`. Une zone avec `fee: null` affiche « sur devis ».
 

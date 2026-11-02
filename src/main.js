@@ -14,19 +14,16 @@ let toastT;
 function toast(msg){$("#toastTxt").textContent=msg;$("#toast").classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>$("#toast").classList.remove("on"),2600)}
 async function copy(text,el){try{await navigator.clipboard.writeText(text);toast("Copié")}catch(e){const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);toast("Texte sélectionné, copiez-le")}}
 
-/* theme */
-(function(){const t=store.get("theme",null);if(t)document.documentElement.dataset.theme=t;
-$("#themeBtn").onclick=()=>{const cur=document.documentElement.dataset.theme||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");const nx=cur==="dark"?"light":"dark";document.documentElement.dataset.theme=nx;store.set("theme",nx)}})();
-
 /* hero : 3 photos qui défilent */
-const heroShow=(function(){const slides=$$("#heroSlides .slide"),dots=$$("#heroDots button"),box=$("#heroDots");if(!slides.length)return{};
-  const MS=6000;box.style.setProperty("--slide-ms",MS+"ms");let i=0,t=null;
-  const go=n=>{i=(n+slides.length)%slides.length;slides.forEach((s,k)=>s.classList.toggle("is-active",k===i));dots.forEach((d,k)=>{d.setAttribute("aria-pressed",k===i);const el=d.firstElementChild;el.style.animation="none";void el.offsetWidth;el.style.animation=""})};
-  const play=()=>{if(reduce){box.classList.add("static");return}clearInterval(t);t=setInterval(()=>go(i+1),MS)};
+const heroShow=(function(){const slides=$$("#heroSlides .slide"),dots=$$("#heroDots button");if(!slides.length)return{};
+  const MS=5500;let i=0,t=null;
+  const go=n=>{i=(n+slides.length)%slides.length;slides.forEach((s,k)=>s.classList.toggle("is-active",k===i));dots.forEach((d,k)=>d.setAttribute("aria-pressed",k===i))};
+  const play=()=>{if(reduce)return;clearInterval(t);t=setInterval(()=>go(i+1),MS)};
   const stop=()=>clearInterval(t);
-  dots.forEach((d,k)=>d.onclick=()=>{go(k);play()});
+  dots.forEach((d,k)=>d.onclick=e=>{e.stopPropagation();go(k);play()});
+  $("#heroSlides").addEventListener("click",()=>{const id=slides[i].dataset.id;if(byId(id))openProduct(id)});
   document.addEventListener("visibilitychange",()=>document.hidden?stop():play());
-  play();return{play,stop}})();
+  return{play,stop,start(){go(0);play()}}})();
 
 /* state */
 let cart=store.get("cart",[]), wish=store.get("wish",[]);
@@ -48,7 +45,9 @@ function card(p,i){return `<article class="card" style="animation-delay:${Math.m
     <div class="meta"><h3>${p.name}</h3><span class="price">${fmt(p.price)}</span></div>
     <div class="sub"><span class="swatches">${p.colors.map(c=>`<i style="background:${c}"></i>`).join("")}</span>${p.stock<=3?`<span class="stock">Plus que ${p.stock} en stock</span>`:`<span>${p.mat.split(",")[0]}</span>`}</div>
   </article>`}
-function catTile(k,extraCls=""){const c=CATS[k],l=inCat(k);return `<a class="cat ${extraCls}" href="#${c.slug}"><img src="/img/${c.cover[0]}.webp" alt="" loading="lazy"><h3>${c.label}</h3><span>${l.length} pièces · dès ${fmt(minPrice(l))}</span><em>Découvrir</em></a>`}
+function catTile(k){const c=CATS[k],l=inCat(k);return `<a class="tile" href="#${c.slug}"><img src="/img/${c.cover[0]}.webp" alt="" loading="lazy"><span>${c.label}<small>${l.length} pièces · dès ${fmt(minPrice(l))}</small></span></a>`}
+/* tuiles de l'accueil : une par famille de bijoux (catégorie + sous-catégorie) */
+const TILES=[["baya","prenom","Bayas prénom","baya-rose-poudre"],["baya","trefle","Bayas trèfles","baya-nuit-trefles"],["collier","perle","Colliers de perles","col-perle-coeur"],["collier","rocaille","Colliers & initiales","col-initiale"],["bracelet","pierre","Bracelets en pierres","br-sept-pierres"],["bracelet","homme","Bracelets pour lui","br-duo-tigre-onyx"]];
 
 /* délégation : ajouter / voir / favori, dans toutes les grilles */
 document.addEventListener("click",e=>{if(!e.target.closest(".grid"))return;
@@ -58,41 +57,42 @@ document.addEventListener("click",e=>{if(!e.target.closest(".grid"))return;
   if(o)openProduct(o.dataset.open)});
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches&&e.target.matches(".vitrine"))openProduct(e.target.dataset.open)});
 
-/* accueil : tuiles + « Les pièces du moment » */
-$("#cats").innerHTML=Object.keys(CATS).map(k=>catTile(k)).join("");
-const HOME_MAX=12;
-let filter="all", query="", sort="feat";
-const FILTERS=[["all","Tout"],["collier","Colliers"],["bracelet","Bracelets"],["baya","Bayas"],["perle","Perles nacrées"],["rare","Séries limitées"]];
-const match=(p,f)=>f==="all"||(f==="rare"?p.stock<=3:f==="perle"?/perle/i.test(p.mat):p.cat===f);
-function renderFilters(){$("#filters").innerHTML=FILTERS.map(([k,l])=>`<button class="chip" aria-pressed="${filter===k}" data-f="${k}">${l}<i>${P.filter(p=>match(p,k)).length}</i></button>`).join("");$$("#filters .chip").forEach(b=>b.onclick=()=>{filter=b.dataset.f;renderFilters();renderGrid()})}
-$("#q").addEventListener("input",e=>{query=e.target.value.trim();renderGrid()});
-$("#sort").addEventListener("change",e=>{sort=e.target.value;renderGrid()});
+/* accueil */
+$("#cats").innerHTML=TILES.map(([k,s,label,img])=>`<a class="tile" href="#${CATS[k].slug}" data-sub="${s}"><img src="/img/${img}.webp" alt="" loading="lazy"><span>${label}</span></a>`).join("");
+$("#featGrid").innerHTML=P.filter(p=>p.feat).slice(0,8).map(card).join("");
 function sorted(l,s){l=[...l];if(s==="asc")l.sort((a,b)=>a.price-b.price);else if(s==="desc")l.sort((a,b)=>b.price-a.price);else if(s==="new")l.sort((a,b)=>b.isNew-a.isNew||a.rank-b.rank);else l.sort((a,b)=>(!!b.feat-!!a.feat)||a.rank-b.rank);return l}
-function renderGrid(){let l=P.filter(p=>match(p,filter));
-  if(query){const q=norm(query);l=l.filter(p=>norm(p.name+" "+p.mat+" "+p.desc+" "+p.cat).includes(q))}
-  l=sorted(l,sort);const shown=l.slice(0,HOME_MAX);
-  $("#grid").innerHTML=shown.length?shown.map(card).join(""):`<div class="empty">Aucune pièce ne correspond à « ${esc(query)} ». Essayez « perle », « corail » ou créez la vôtre dans l'Atelier.</div>`;
-  const c=CATS[filter];
-  $("#homeMore").innerHTML=c?`<a class="btn btn-ghost" href="#${c.slug}">Voir les ${inCat(filter).length} ${c.label.toLowerCase()}</a>`:l.length>HOME_MAX?`<span class="muted" style="font-size:14px">${shown.length} pièces sur ${l.length} · choisissez une collection pour tout voir</span>`:""}
+
+/* liens vers une sous-catégorie (tuiles, blocs « perles et pierres ») */
+let pendingSub=null,pendingQ=null;
+document.addEventListener("click",e=>{const a=e.target.closest("a[data-sub]");if(!a)return;pendingSub=a.dataset.sub;
+  if(location.hash===a.getAttribute("href")){e.preventDefault();route()}});
+
+/* recherche du bandeau */
+$("#topSearch").addEventListener("submit",e=>{e.preventDefault();pendingQ=$("#topQ").value.trim();pendingSub="all";
+  if(location.hash==="#boutique")route();else location.hash="boutique"});
 
 /* page catégorie */
 const cs={cat:null,sub:"all",q:"",price:"all",sort:"feat"};
-function renderCatView(){const k=cs.cat,c=CATS[k],l=inCat(k);
-  $("#cvCrumb").textContent=c.label;$("#cvTitle").textContent=c.label.toLowerCase();$("#cvIntro").textContent=c.intro;
-  $("#cvNext").innerHTML=Object.keys(CATS).filter(x=>x!==k).map(x=>catTile(x)).join("");
+const ALL={slug:"boutique",label:"Tous nos bijoux",single:"bijou",intro:"Bayas, colliers et bracelets : toute la collection Pearl Vibes, montée à la main à Cotonou."};
+const catInfo=k=>k==="all"?ALL:CATS[k];
+const inView=k=>k==="all"?P:inCat(k);
+function renderCatView(){const k=cs.cat,c=catInfo(k);
+  $("#cvCrumb").textContent=c.label;$("#cvTitle").textContent=c.label;$("#cvIntro").textContent=c.intro;
+  const others=Object.keys(CATS).filter(x=>x!==k);$("#cvNext").innerHTML=others.map(x=>catTile(x)).join("");$("#cvNext").className="tiles tiles-3"+(others.length===2?" tiles-2":"");
   renderSubs();renderCatGrid()}
-function renderSubs(){const k=cs.cat,l=inCat(k);
-  const items=[["all","Tout",l.length],...SUBS[k].map(([s,lab])=>[s,lab,l.filter(p=>p.sub===s).length]),["rare","Séries limitées",l.filter(p=>p.stock<=3).length]].filter(x=>x[2]>0);
+function renderSubs(){const k=cs.cat,l=inView(k);
+  const subs=k==="all"?Object.entries(CATS).map(([key,c])=>[key,c.label]):SUBS[k];const subMatch=(p,s)=>k==="all"?p.cat===s:p.sub===s;
+  const items=[["all","Tout",l.length],...subs.map(([s,lab])=>[s,lab,l.filter(p=>subMatch(p,s)).length]),["rare","Séries limitées",l.filter(p=>p.stock<=3).length]].filter(x=>x[2]>0);
   $("#cvSubs").innerHTML=items.map(([s,lab,n])=>`<button class="chip" data-sub="${s}" aria-pressed="${cs.sub===s}">${lab}<i>${n}</i></button>`).join("")}
-function catList(){let l=inCat(cs.cat);
-  if(cs.sub==="rare")l=l.filter(p=>p.stock<=3);else if(cs.sub!=="all")l=l.filter(p=>p.sub===cs.sub);
+function catList(){let l=inView(cs.cat);
+  if(cs.sub==="rare")l=l.filter(p=>p.stock<=3);else if(cs.sub!=="all")l=l.filter(p=>cs.cat==="all"?p.cat===cs.sub:p.sub===cs.sub);
   if(cs.price!=="all"){const[a,b]=cs.price.split("-").map(Number);l=l.filter(p=>p.price>=a&&p.price<b)}
-  if(cs.q){const q=norm(cs.q);l=l.filter(p=>norm(p.name+" "+p.mat+" "+p.desc).includes(q))}
-  const s=cs.sort;l=[...l];if(s==="asc")l.sort((a,b)=>a.price-b.price);else if(s==="desc")l.sort((a,b)=>b.price-a.price);else if(s==="new")l.sort((a,b)=>b.isNew-a.isNew||a.rank-b.rank);else l.sort((a,b)=>a.rank-b.rank);return l}
-function renderCatGrid(){const l=catList(),c=CATS[cs.cat];const filtered=cs.sub!=="all"||cs.q||cs.price!=="all";
-  $("#cvCount").textContent=`${l.length} ${l.length>1?"pièces":"pièce"}${filtered?" sur "+inCat(cs.cat).length:""}`;$("#cvReset").hidden=!filtered;
-  $("#cvGrid").innerHTML=l.length?l.map(card).join(""):`<div class="empty">Aucun ${c.single.toLowerCase()} ne correspond à ces filtres. <button class="mini" data-reset>Tout afficher</button></div>`}
-function resetCat(){cs.sub="all";cs.q="";cs.price="all";$("#cvQ").value="";$("#cvPrice").value="all";renderSubs();renderCatGrid()}
+  if(cs.q){const q=norm(cs.q);l=l.filter(p=>norm(p.name+" "+p.mat+" "+p.desc+" "+catInfo(p.cat).label).includes(q))}
+  return sorted(l,cs.sort)}
+function renderCatGrid(){const l=catList(),c=catInfo(cs.cat);const filtered=cs.sub!=="all"||cs.q||cs.price!=="all";
+  $("#cvCount").textContent=`${l.length} ${l.length>1?"pièces":"pièce"}${filtered?" sur "+inView(cs.cat).length:""}${cs.q?" pour « "+esc(cs.q)+" »":""}`;$("#cvReset").hidden=!filtered;
+  $("#cvGrid").innerHTML=l.length?l.map(card).join(""):`<div class="empty">Aucun ${c.single.toLowerCase()} ne correspond à ces filtres.<br><br><button class="mini" data-reset>Tout afficher</button></div>`}
+function resetCat(){cs.sub="all";cs.q="";cs.price="all";$("#cvQ").value="";$("#topQ").value="";$("#cvPrice").value="all";renderSubs();renderCatGrid()}
 $("#cvSubs").addEventListener("click",e=>{const b=e.target.closest("[data-sub]");if(!b)return;cs.sub=b.dataset.sub;renderSubs();renderCatGrid()});
 $("#cvQ").addEventListener("input",e=>{cs.q=e.target.value.trim();renderCatGrid()});
 $("#cvPrice").addEventListener("change",e=>{cs.price=e.target.value;renderCatGrid()});
@@ -100,19 +100,23 @@ $("#cvSort").addEventListener("change",e=>{cs.sort=e.target.value;renderCatGrid(
 $("#cvReset").onclick=resetCat;
 $("#cvGrid").addEventListener("click",e=>{if(e.target.closest("[data-reset]"))resetCat()});
 
-/* routeur : #colliers, #bracelets, #bayas = pages catégories ; le reste = accueil */
-const SLUGS=Object.fromEntries(Object.entries(CATS).map(([k,c])=>[c.slug,k]));
+/* routeur : #bayas, #colliers, #bracelets, #boutique = pages catalogue ; le reste = accueil */
+const SLUGS={...Object.fromEntries(Object.entries(CATS).map(([k,c])=>[c.slug,k])),boutique:"all"};
 function route(){const h=decodeURIComponent(location.hash.slice(1));const k=SLUGS[h];
   const home=$("#home"),view=$("#catView");
   closeAll(true);
-  if(k){const changed=cs.cat!==k;if(changed){cs.cat=k;cs.sub="all";cs.q="";cs.price="all";cs.sort="feat";$("#cvQ").value="";$("#cvPrice").value="all";$("#cvSort").value="feat"}
+  $$("[data-nav]").forEach(a=>{if(a.dataset.nav===h)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")});
+  if(k){if(cs.cat!==k||pendingSub||pendingQ!==null){cs.cat=k;cs.sub=pendingSub&&pendingSub!=="all"?pendingSub:"all";cs.q=pendingQ||"";cs.price="all";cs.sort="feat";$("#cvQ").value=cs.q;$("#cvPrice").value="all";$("#cvSort").value="feat"}
+    pendingSub=null;pendingQ=null;$("#topQ").value=k==="all"?cs.q:"";
     home.hidden=true;view.hidden=false;view.style.animation="none";void view.offsetWidth;view.style.animation="";renderCatView();window.scrollTo(0,0);
-    document.title=CATS[k].label+" · Pearl Vibes";heroShow.stop&&heroShow.stop();return}
+    document.title=catInfo(k).label+" · Pearl Vibes";heroShow.stop&&heroShow.stop();return}
+  pendingSub=null;pendingQ=null;$("#topQ").value="";
   const wasHidden=home.hidden;home.hidden=false;view.hidden=true;document.title="Pearl Vibes · Accessoires en perles à Cotonou";
   if(wasHidden&&heroShow.play)heroShow.play();
   if(!h||h==="accueil"){window.scrollTo(0,0);return}
   const el=document.getElementById(h);if(el)requestAnimationFrame(()=>el.scrollIntoView({behavior:wasHidden?"auto":"smooth"}))}
 addEventListener("hashchange",route);
+addEventListener("scroll",()=>$(".nav").classList.toggle("scrolled",scrollY>60),{passive:true});
 
 function defaults(p){const o={};for(const k in p.opts)o[k]=p.opts[k][0];return o}
 
@@ -148,7 +152,7 @@ function message(){const T=totals();const L=[];
   if(co.name)L.push(`Nom : ${co.name}`);if(co.place)L.push(`Adresse / quartier : ${co.place}`);if(co.gift&&co.note)L.push(`Mot pour la carte : ${co.note}`);
   L.push(``,`Merci de me confirmer la disponibilité 🙏`);return L.join("\n")}
 function renderCart(){const b=$("#cartBody"),f=$("#cartFoot");
-  if(!cart.length){b.innerHTML=`<div class="d-empty"><img src="/img/monogramme.webp" alt=""><p>Votre panier est vide.</p><button class="btn btn-ghost" data-close-go>Voir la collection</button></div>`;f.hidden=true;$("[data-close-go]",b).onclick=()=>{closeAll();$("#collection").scrollIntoView({behavior:"smooth"})};return}
+  if(!cart.length){b.innerHTML=`<div class="d-empty"><img src="/img/monogramme.webp" alt=""><p>Votre panier est vide.</p><button class="btn btn-ghost" data-close-go>Voir la collection</button></div>`;f.hidden=true;$("[data-close-go]",b).onclick=()=>{closeAll();location.hash="boutique"};return}
   f.hidden=false;const T=totals();const left=SHOP.freeShipping-T.sub;
   b.innerHTML=`<div class="freebar">${left>0?`Plus que <b class="price">${fmt(left)}</b> pour la livraison offerte`:`<b>Livraison offerte</b> sur votre commande`}<div class="bar"><i style="width:${Math.min(100,T.sub/SHOP.freeShipping*100)}%"></i></div></div>
   ${cart.map((i,n)=>`<div class="line-item"><div class="li-img ${i.custom?"custom":""}"><img src="${i.img}" alt=""></div>
@@ -230,7 +234,7 @@ function drawBead(ctx,x,y,r,b){ctx.save();ctx.translate(x,y);
 let hitPts=[];
 function isLight(){return getComputedStyle(document.documentElement).colorScheme.trim()==="light"}
 function drawStage(){const W=cv.width,C=W/2;cx.clearRect(0,0,W,W);const light=isLight();
-  const ink=light?"29,21,14":"245,238,226",gold=light?"166,122,38":"216,174,85";
+  const ink="33,28,23",gold="165,124,44";
   const R=W*.34;const col=at.kind==="collier";const cy=col?C-40:C;
   cx.save();cx.strokeStyle=`rgba(${gold},.35)`;cx.setLineDash([3,9]);cx.lineWidth=2;cx.beginPath();
   if(col)cx.ellipse(C,cy,R*.95,R*1.08,0,Math.PI*.1,Math.PI*.9);else cx.arc(C,cy,R,0,Math.PI*2);cx.stroke();cx.restore();
@@ -240,8 +244,8 @@ function drawStage(){const W=cv.width,C=W/2;cx.clearRect(0,0,W,W);const light=is
     if(col){const a=Math.PI*.1+Math.PI*.8*mid;x=C+Math.cos(a)*R*.95;y=cy+Math.sin(a)*R*1.08}else{const a=-Math.PI/2+mid*Math.PI*2;x=C+Math.cos(a)*R;y=cy+Math.sin(a)*R}
     const rr=Math.max(4,Math.min(mm/2*pxmm*.97,58));cx.save();cx.shadowColor="rgba(0,0,0,.4)";cx.shadowBlur=rr*.7;cx.shadowOffsetY=rr*.3;drawBead(cx,x,y,rr,b);cx.restore();hitPts.push({x,y,r:rr,i})});
   cx.textAlign="center";
-  if(!at.beads.length){cx.fillStyle=`rgba(${ink},.6)`;cx.font="italic 52px 'Cormorant Garamond', Georgia, serif";cx.fillText("Votre fil est prêt",C,C-6);cx.font="26px 'Jost', sans-serif";cx.fillText("Choisissez une perle pour commencer",C,C+40)}
-  else{const ty=col?C-150:C;cx.fillStyle=`rgba(${ink},.9)`;cx.font="500 40px 'Cinzel', Georgia, serif";cx.fillText(KIND[at.kind].label.split(" ")[0].toUpperCase(),C,ty-4);cx.font="italic 34px 'Cormorant Garamond', Georgia, serif";cx.fillStyle=`rgba(${gold},1)`;cx.fillText(at.len+" cm · "+Math.round(used()/cap*100)+" % rempli",C,ty+42)}
+  if(!at.beads.length){cx.fillStyle=`rgba(${ink},.6)`;cx.font="54px 'Playball', cursive";cx.fillText("Votre fil est prêt",C,C-6);cx.font="26px 'Arsenal', sans-serif";cx.fillText("Choisissez une perle pour commencer",C,C+40)}
+  else{const ty=col?C-150:C;cx.fillStyle=`rgba(${ink},.9)`;cx.font="56px 'Playball', cursive";cx.fillText(KIND[at.kind].label.split(" ")[0],C,ty-4);cx.font="700 26px 'Arsenal', sans-serif";cx.fillStyle=`rgba(${gold},1)`;cx.fillText(at.len+" cm · "+Math.round(used()/cap*100)+" % rempli",C,ty+42)}
   $("#beadCount").textContent=at.beads.length+(at.beads.length>1?" perles":" perle");$("#full").hidden=used()<cap-4;$("#atTotal").textContent=fmt(atPrice())}
 const atPrice=()=>at.beads.length?KIND[at.kind].base+at.beads.reduce((s,id)=>s+BEADS.find(b=>b.id===id).p,0):0;
 function addBeadQuiet(id){const b=BEADS.find(x=>x.id===id);if(used()+beadMm(b)>capacity())return false;at.beads.push(id);return true}
@@ -260,12 +264,10 @@ cv.addEventListener("click",e=>{const r=cv.getBoundingClientRect();const x=(e.cl
 $("#atAdd").onclick=()=>{if(at.beads.length<5){toast("Ajoutez au moins 5 perles à votre création");return}
   const counts={};at.beads.forEach(id=>counts[id]=(counts[id]||0)+1);
   const detail="Composition : "+Object.entries(counts).map(([id,n])=>n+" × "+BEADS.find(b=>b.id===id).name.toLowerCase()).join(", ");
-  const t=document.createElement("canvas");t.width=t.height=200;const tc=t.getContext("2d");tc.fillStyle=isLight()?"#efe5d4":"#16110d";tc.fillRect(0,0,200,200);tc.drawImage(cv,0,0,200,200);
+  const t=document.createElement("canvas");t.width=t.height=200;const tc=t.getContext("2d");tc.fillStyle="#f6f2ec";tc.fillRect(0,0,200,200);tc.drawImage(cv,0,0,200,200);
   const K=KIND[at.kind];addToCart({id:"atelier-"+Date.now(),name:K.label,price:atPrice(),img:t.toDataURL("image/jpeg",.8),custom:true,detail},{longueur:at.len+" cm"},1,null);
   $("#cartBtn").click()};
 new ResizeObserver(()=>drawStage()).observe($("#stage"));
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change",drawStage);
-new MutationObserver(drawStage).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 document.fonts&&document.fonts.ready.then(drawStage);
 ["perle","perle","or","perle","perle","or","corail","or"].forEach(addBeadQuiet);fillPattern();
 
@@ -276,6 +278,7 @@ $("#waist").addEventListener("input",waistCalc);waistCalc();
 
 /* contact */
 $("#waNum").textContent=SHOP.whatsappDisplay;$("#copyNum").onclick=()=>copy(SHOP.whatsappDisplay,$("#waNum"));
+$("#topWaNum").textContent=SHOP.whatsappDisplay;$("#topWa").href=waLink(`Bonjour ${SHOP.name}, j'ai une question sur vos bijoux.`);
 $("#fab").href=waLink(`Bonjour ${SHOP.name}, j'ai une question sur vos accessoires en perles.`);
 
-renderFilters();renderGrid();updateCounts();renderCart();renderWish();route();
+updateCounts();renderCart();renderWish();route();heroShow.start&&heroShow.start();
